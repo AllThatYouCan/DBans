@@ -7,30 +7,34 @@ import java.util.Date;
 import java.util.HashMap;
 import org.spongepowered.api.command.CommandSource;
 import org.spongepowered.api.entity.living.player.User;
+import ru.delusive.bans.config.Config;
+import ru.delusive.bans.config.ConfigManager;
 
 public class BaseUtils {
 	
-	MySQLWorker mysql;// = MainClass.mysql;
-	ConfigUtils cfg;
+	private MySQLWorker mysql;
+	private ConfigManager cfgManager;
+	private Config.BansParams bansParams;
 	
 	public BaseUtils() {
-		cfg = MainClass.config;
+		cfgManager = MainClass.cfgManager;
 		mysql = MainClass.mysql;
+		bansParams = cfgManager.getBanFields();
 	}
 	
 	public boolean isPlayerBanned(User user) {
 		try {
 			String stmt = String.format("SELECT `%s` FROM `%s` WHERE `%s` = ?;",
-					cfg.BANS_EXPIRESCOLUMN, cfg.BANS_TABLENAME, isUUIDEnabled() ? cfg.BANS_UUIDCOLUMN : cfg.BANS_USERCOLUMN);
+					bansParams.getExpires(), bansParams.getTableName(), isUUIDEnabled() ? bansParams.getUuid() : bansParams.getUsername());
 			ResultSet rs = mysql.executeStatement(stmt, isUUIDEnabled() ? user.getUniqueId().toString() : user.getName());
 			if(rs.next()) {
-				long banTime = rs.getLong(cfg.BANS_EXPIRESCOLUMN);
+				long banTime = rs.getLong(bansParams.getExpires());
 				if(banTime > System.currentTimeMillis() || banTime == 0) {
 					
 					return true;
 				}
 				stmt = String.format("DELETE FROM `%s` WHERE `%s` = ?", 
-						cfg.BANS_TABLENAME, isUUIDEnabled() ? cfg.BANS_UUIDCOLUMN : cfg.BANS_USERCOLUMN);
+						bansParams.getTableName(), isUUIDEnabled() ? bansParams.getUuid() : bansParams.getUsername());
 				mysql.executeUpdateStatement(stmt, isUUIDEnabled() ? user.getUniqueId().toString() : user.getName());
 			}
 			return false;
@@ -42,12 +46,12 @@ public class BaseUtils {
 		String stmt;
 		if(isUUIDEnabled()) {
 			stmt = String.format("INSERT INTO `%s` (`%s`, `%s`, `%s`, `%s`, `%s`, `%s`) VALUES (?, ?, ?, ?, ?, ?);", 
-					cfg.BANS_TABLENAME, cfg.BANS_UUIDCOLUMN, cfg.BANS_USERCOLUMN, 
-					cfg.BANS_TIMECOLUMN, cfg.BANS_EXPIRESCOLUMN, cfg.BANS_ADMINCOLUMN, cfg.BANS_REASONCOLUMN);
+					bansParams.getTableName(), bansParams.getUuid(), bansParams.getUsername(),
+					bansParams.getBantime(), bansParams.getExpires(), bansParams.getAdmin(), bansParams.getReason());
 		} else {
 			stmt = String.format("INSERT INTO `%s` (`%s`, `%s`, `%s`, `%s`, `%s`) VALUES (?, ?, ?, ?, ?);", 
-					cfg.BANS_TABLENAME, cfg.BANS_USERCOLUMN, 
-					cfg.BANS_TIMECOLUMN, cfg.BANS_EXPIRESCOLUMN, cfg.BANS_ADMINCOLUMN, cfg.BANS_REASONCOLUMN);
+					bansParams.getTableName(), bansParams.getUsername(),
+					bansParams.getBantime(), bansParams.getExpires(), bansParams.getAdmin(), bansParams.getReason());
 		}
 		String bannerName = src.getName();
 		CustomData data = new CustomData();
@@ -63,16 +67,16 @@ public class BaseUtils {
 	
 	public HashMap<String, String> getBanDetails(User user) {
 		String stmt = String.format("SELECT `%s`, `%s`, `%s`, `%s` FROM `%s` WHERE `%s` = ? LIMIT 1", 
-				cfg.BANS_TIMECOLUMN, cfg.BANS_EXPIRESCOLUMN, cfg.BANS_ADMINCOLUMN, 
-				cfg.BANS_REASONCOLUMN, cfg.BANS_TABLENAME, isUUIDEnabled() ? cfg.BANS_UUIDCOLUMN : cfg.BANS_USERCOLUMN);
+				bansParams.getBantime(), bansParams.getExpires(), bansParams.getAdmin(), 
+				bansParams.getReason(), bansParams.getTableName(), isUUIDEnabled() ? bansParams.getUuid() : bansParams.getUsername());
 		ResultSet res = mysql.executeStatement(stmt, isUUIDEnabled() ? user.getUniqueId().toString() : user.getName());
 		try {
 			res.next();
 			HashMap <String, String> map = new HashMap<>();
-			map.put(cfg.BANS_TIMECOLUMN, String.valueOf(res.getLong(1)));
-			map.put(cfg.BANS_EXPIRESCOLUMN, String.valueOf(res.getLong(2)));
-			map.put(cfg.BANS_ADMINCOLUMN, res.getString(3));
-			map.put(cfg.BANS_REASONCOLUMN, res.getString(4));
+			map.put(bansParams.getBantime(), String.valueOf(res.getLong(1)));
+			map.put(bansParams.getExpires(), String.valueOf(res.getLong(2)));
+			map.put(bansParams.getAdmin(), res.getString(3));
+			map.put(bansParams.getReason(), res.getString(4));
 			return map;
 		} catch (SQLException e) {e.printStackTrace(); return null;}
 		
@@ -86,12 +90,12 @@ public class BaseUtils {
 	}
 	
 	public boolean unbanPlayer(User user) {
-		String stmt = String.format("DELETE FROM `%s` WHERE `%s` = ?", cfg.BANS_TABLENAME, isUUIDEnabled() ? cfg.BANS_UUIDCOLUMN : cfg.BANS_USERCOLUMN);
+		String stmt = String.format("DELETE FROM `%s` WHERE `%s` = ?", bansParams.getTableName(), isUUIDEnabled() ? bansParams.getUuid() : bansParams.getUsername());
 		return mysql.executeUpdateStatement(stmt, isUUIDEnabled()?user.getUniqueId().toString():user.getName());
 	}
 	
 	public boolean isUUIDEnabled() {
-		return !cfg.BANS_UUIDCOLUMN.equals("null");
+		return !bansParams.getUuid().equals("null");
 	}
 	
 	

@@ -9,6 +9,7 @@ import org.spongepowered.api.command.CommandSource;
 import org.spongepowered.api.command.args.CommandContext;
 import org.spongepowered.api.command.spec.CommandExecutor;
 import org.spongepowered.api.entity.living.player.User;
+import org.spongepowered.api.scheduler.Task;
 import org.spongepowered.api.service.user.UserStorageService;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.format.TextColors;
@@ -19,11 +20,7 @@ public class CheckbanCommand implements CommandExecutor {
 
 	@Override
 	public CommandResult execute(CommandSource src, CommandContext args) throws CommandException {
-		if(!MainClass.config.IS_PLUGIN_ENABLED) {
-			src.sendMessage(Text.builder("Plugin is disabled!").color(TextColors.RED).build());
-			return CommandResult.success();
-		}
-		new Thread(() -> {
+		Task.builder().async().execute(() -> {
 			String playerName = args.getOne("PlayerName").get().toString();
 			UserStorageService storage = Sponge.getServiceManager().provide(UserStorageService.class).get();
 			if(!storage.get(playerName).isPresent()) {
@@ -33,10 +30,10 @@ public class CheckbanCommand implements CommandExecutor {
 				User user = storage.get(playerName).get();
 				if(MainClass.utils.isPlayerBanned(user)) {
 					HashMap<String, String> map = MainClass.utils.getBanDetails(user);
-					Long unbanTime = Long.valueOf(map.get(MainClass.config.BANS_EXPIRESCOLUMN));
-					Long banTime = Long.valueOf(map.get(MainClass.config.BANS_TIMECOLUMN));
-					String reason = map.get(MainClass.config.BANS_REASONCOLUMN);
-					String bannerName = map.get(MainClass.config.BANS_ADMINCOLUMN);
+					Long unbanTime = Long.valueOf(map.get(MainClass.cfgManager.getBanFields().getExpires()));
+					Long banTime = Long.valueOf(map.get(MainClass.cfgManager.getBanFields().getBantime()));
+					String reason = map.get(MainClass.cfgManager.getBanFields().getReason());
+					String bannerName = map.get(MainClass.cfgManager.getBanFields().getAdmin());
 					Text.Builder b = Text.builder();
 					
 					b.append(Text.builder("=====================================").color(TextColors.AQUA).build());
@@ -91,7 +88,7 @@ public class CheckbanCommand implements CommandExecutor {
 					src.sendMessage(Text.builder("Player isn't banned.").color(TextColors.GOLD).build());
 				}
 			}
-		}).start();
+		}).submit(MainClass.plugin);
 		return CommandResult.success();
 	}
 

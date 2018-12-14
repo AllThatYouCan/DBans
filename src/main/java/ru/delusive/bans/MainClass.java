@@ -3,6 +3,7 @@ package ru.delusive.bans;
 import java.io.IOException;
 import java.util.HashMap;
 
+import ninja.leaping.configurate.objectmapping.ObjectMappingException;
 import org.slf4j.Logger;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.command.CommandManager;
@@ -15,6 +16,7 @@ import org.spongepowered.api.event.game.GameReloadEvent;
 import org.spongepowered.api.event.game.state.GameStartedServerEvent;
 import org.spongepowered.api.event.network.ClientConnectionEvent;
 import org.spongepowered.api.plugin.Plugin;
+import org.spongepowered.api.plugin.PluginContainer;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.format.TextColors;
 
@@ -26,50 +28,47 @@ import ru.delusive.bans.commands.BanCommand;
 import ru.delusive.bans.commands.CheckbanCommand;
 import ru.delusive.bans.commands.TempbanCommand;
 import ru.delusive.bans.commands.UnbanCommand;
+import ru.delusive.bans.config.ConfigManager;
 
-@Plugin(id = "dbans", name = "DBans", version="1.0", authors="Delusive-")
+@Plugin(id = "dbans", name = "DBans", version="1.1", authors="Delusive-")
 public class MainClass {
 	@Inject
-	Logger logger;
+	private Logger logger;
 	@Inject
 	@DefaultConfig(sharedRoot = false)
 	public ConfigurationLoader <CommentedConfigurationNode> loader;
-	public static ConfigUtils config;
+	public static ConfigManager cfgManager;
 	public static MySQLWorker mysql;
 	public static BaseUtils utils;
+	public static PluginContainer plugin;
 	
 	@Listener
-	public void onPluginEnable(GameStartedServerEvent e) throws IOException {
+	public void onPluginEnable(GameStartedServerEvent e) throws IOException, ObjectMappingException {
 		logger.info("Ok, I'll try to load myself...");
-		config = new ConfigUtils(loader);
-		config.init();
+		plugin = Sponge.getPluginManager().getPlugin("dbans").get();
+		cfgManager = new ConfigManager(loader);
 		mysql = new MySQLWorker();
 		utils = new BaseUtils();
-		if(!config.IS_PLUGIN_ENABLED) {
-			logger.info("isEnabled is set to false in config file. Disabling...:(");
-		}
 		registerCommands();
-		if(config.IS_PLUGIN_ENABLED)
-			if(mysql.createTable()) {
-				logger.info("I did it! I loaded!");
-			} else {
-				logger.warn("MySQL Error, couldn't create table. Please check the stack trace.");
-				config.IS_PLUGIN_ENABLED = false;
-			}
+		if(!cfgManager.getIsEnabled()) {
+			logger.info("Plugin disabled in config file.");
+		} else if(mysql.createTable()) {
+			logger.info("I did it! I loaded!");
+		}
 	}
 	
 	@Listener
 	public void onPlayerJoined(ClientConnectionEvent.Login e) {
-		if(!config.IS_PLUGIN_ENABLED) return; 
+		if(!cfgManager.getIsEnabled()) return;
 		User user = e.getTargetUser();
 		if(utils.isPlayerBanned(user)) {
 			e.setCancelled(true);
 			HashMap<String, String> map = utils.getBanDetails(user);
-			Long expires = Long.valueOf(map.get(config.BANS_EXPIRESCOLUMN));
-			boolean isPermanent = (expires == 0) ? true : false;
+			Long expires = Long.valueOf(map.get(cfgManager.getBanFields().getExpires()));
+			boolean isPermanent = (expires == 0);
 			String msg = String.format("You were %s banned by %s. Reason: %s.", 
 					isPermanent ? "permanently" : "temporarily", 
-					map.get(config.BANS_ADMINCOLUMN), map.get(config.BANS_REASONCOLUMN));
+					map.get(cfgManager.getBanFields().getAdmin()), map.get(cfgManager.getBanFields().getReason()));
 			Text tempMsg = Text.of("");
 			if(!isPermanent) tempMsg = Text.builder(String.format("\nYou will be unbanned at %s", utils.getFormattedDate(expires))).color(TextColors.GOLD).build();
 			e.setMessage(Text.builder(msg).color(TextColors.RED).append(tempMsg));
@@ -77,20 +76,18 @@ public class MainClass {
 	}
 	
 	@Listener
-	public void onReload(GameReloadEvent e) throws IOException {
+	public void onReload(GameReloadEvent e) throws IOException, ObjectMappingException {
 		logger.info("Reloading config...");
-		config.init();
+		cfgManager = new ConfigManager(this.loader);
 		mysql = new MySQLWorker();
 		utils = new BaseUtils();
-		if(!config.IS_PLUGIN_ENABLED) {
-			logger.info("I'm disabled!");
+		if (!cfgManager.getIsEnabled()) {
+			logger.info("Plugin disabled in config file.");
 			return;
 		}
-		config.IS_PLUGIN_ENABLED = false;
-		if(mysql.createTable()) {
+		if (mysql.createTable()) {
 			logger.info("I did it! I loaded!");
 		}
-		config.IS_PLUGIN_ENABLED = true;
 	}
 	
 	public void registerCommands() {

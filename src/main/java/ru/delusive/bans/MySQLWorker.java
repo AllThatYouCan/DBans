@@ -10,18 +10,22 @@ import javax.sql.DataSource;
 
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.service.sql.SqlService;
+import ru.delusive.bans.config.Config;
+import ru.delusive.bans.config.ConfigManager;
 
 public class MySQLWorker {
-	SqlService sql;
-	ConfigUtils config;
-	
+	private SqlService sql;
+	private ConfigManager cfgManager;
+	private Config.BansParams bansParams;
+
 	MySQLWorker(){
-		this.config = MainClass.config;
+		this.cfgManager = MainClass.cfgManager;
+		bansParams = cfgManager.getBanFields();
 	}
 	
 	public DataSource getDataSource() throws SQLException {
 		sql = Sponge.getServiceManager().provide(SqlService.class).get();
-		String alias = sql.getConnectionUrlFromAlias(config.JDBC_ALIAS).orElseThrow(() -> new IllegalArgumentException("JDBC alias not found"));
+		String alias = sql.getConnectionUrlFromAlias(cfgManager.getAliasName()).orElseThrow(() -> new IllegalArgumentException("JDBC alias not found"));
 		return sql.getDataSource(alias);
 	}
 	
@@ -126,8 +130,8 @@ public class MySQLWorker {
 				"	`%s` VARCHAR(50) NOT NULL" +  
 				") " + 
 				"COLLATE='utf8_general_ci'",
-				config.BANS_TABLENAME, isUUIDEn ? config.BANS_UUIDCOLUMN : " ", config.BANS_USERCOLUMN,
-				config.BANS_TIMECOLUMN, config.BANS_EXPIRESCOLUMN, config.BANS_ADMINCOLUMN, config.BANS_REASONCOLUMN);
+				bansParams.getTableName(), isUUIDEn ? bansParams.getUuid() : " ", bansParams.getUsername(),
+				bansParams.getBantime(), bansParams.getExpires(), bansParams.getAdmin(), bansParams.getReason());
 		return this.executeStatement(stmt);
 	}
 	

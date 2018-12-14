@@ -7,6 +7,7 @@ import org.spongepowered.api.command.CommandSource;
 import org.spongepowered.api.command.args.CommandContext;
 import org.spongepowered.api.command.spec.CommandExecutor;
 import org.spongepowered.api.entity.living.player.User;
+import org.spongepowered.api.scheduler.Task;
 import org.spongepowered.api.service.user.UserStorageService;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.format.TextColors;
@@ -17,11 +18,7 @@ public class TempbanCommand implements CommandExecutor {
 
 	@Override
 	public CommandResult execute(CommandSource src, CommandContext args) throws CommandException {
-		if(!MainClass.config.IS_PLUGIN_ENABLED) {
-			src.sendMessage(Text.builder("Plugin is disabled!").color(TextColors.RED).build());
-			return CommandResult.success();
-		}
-		new Thread(() -> {
+		Task.builder().async().execute(() -> {
 			String playerName = args.getOne("PlayerName").get().toString();
 			String reason = args.getOne("reason").get().toString();
 			long time = System.currentTimeMillis() + getSecs(args.getOne("TimeUnitsName").get().toString()) * (int)args.getOne("Time").get() * 1000L;
@@ -45,7 +42,7 @@ public class TempbanCommand implements CommandExecutor {
 					}
 				}
 			}
-		}).start();
+		}).submit(MainClass.plugin);
 		
 		return CommandResult.success();
 	}
